@@ -43,7 +43,7 @@ def main():
                 temp.append(decoder_CDMA(received_msgs[noise][node],codes[f"scenario-{scenario}"][node])) # this holds received messages from different nodes for specific noise std value
                                                                                                         # so its shape is (1,3)
             decoded_msgs.append(temp) # packed format of received messages, shape (7,3)
-        encoded 
+        eval_BER(encoded_msgs,decoded_msgs)
 
 
 
