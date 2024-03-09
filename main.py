@@ -1,49 +1,92 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import random 
+import pandas as pd
+
+MSG_LEN = 10**6
 
 def encoder_CDMA(input_bit_sequence, user_code):
-    pass
 
-def apply_channel(enc_chips_sequences,noise_stdev):
-    pass
+    digit_list = [1 if int(digit)== 1 else -1 for digit in input_bit_sequence]
+    encode = np.array(digit_list)
+    code = np.array(user_code)
+    signal = np.empty([len(code)*len(encode)])
+
+    for e_idx,e in enumerate(encode):
+        for c_idx,c in enumerate(code):
+            signal[e_idx*len(code)+c_idx] = e*c
+
+    return signal
+
+def apply_channel(enc_chips_sequences,noise_stdevs):
+    signals = []
+    superposed_signal = np.sum(enc_chips_sequences, axis=0)
+    for stdev in noise_stdevs:
+        noise = np.random.normal(0,stdev,len(superposed_signal))
+        signals.append(np.sum([superposed_signal,noise],axis = 0))
+    
+    return signals
 
 def decoder_CDMA(received_bit_sequence, user_code):
-    pass
+    decode = np.array(received_bit_sequence).reshape(-1,len(np.array(user_code))) * user_code
+    decode = np.sum(decode, axis=1)
+    data = np.where(decode>0,1,np.where(decode<0,0,0))
+    return data
+
 
 def eval_BER(input_bit_sequence,received_bit_sequence):
-    pass
+    res = []
+    
+    for i in range(7):
+        res_row = []
+        for j in range(3):
+            count = 0
+            inp = input_bit_sequence[j]
+            out = received_bit_sequence[i][j]
+            for j in range(len(inp)):
+                if int(inp[j]) != out[j] :
+                    count += 1
+            res_row.append(count/MSG_LEN)
+        res.append(res_row)
+    
+    res_arr = np.array(res).T
+    df = pd.DataFrame(res_arr,columns=['0.001','0.005', '0.01', '0.05', '0.1', '0.5', '1'])
+    return df
 
-
+def random_bit_generator(length):
+    X = ""
+    for i in range(length):
+        num = random.randint(0, 1)
+        X += str(num)
+    return X
 
 
 def main():
-    MSG_LEN = 10**6
+    
     codes = {"scenario-1":{1:[1,1,1,1],2:[1,-1,1,-1],3:[1,-1,-1,1]},"scenario-2":{1:[1,1,1,1,1,1,1,1],2:[1,1,-1,-1,1,1,-1,-1],3:[1,-1,-1,1,1,-1,-1,1]}}
     st_devs = [0.001,0.005, 0.01, 0.05, 0.1, 0.5, 1]
     msg = []
      # Generating random signal
     for i in range(3):
-        s = random.getrandbits(MSG_LEN)
-        inp_bit_sq = format(s, '0b')
-        msg.append(inp_bit_sq)
+        msg.append(random_bit_generator(MSG_LEN))
 
 
-    encoded_msgs = [] 
     
-    decoded_msgs = []
     for scenario in range(1,3): # loop for each scenario
-        for node in range(3): # loop for each node
-            encoded_msgs.append(encoder_CDMA(msg[node],codes[f"scenario-{scenario}"][node])) # this holds encoded messages of nodes, its shape (1,3)
+        encoded_msgs = [] 
+        decoded_msgs = []
+        for node in range(1,4): # loop for each node
+            encoded_msgs.append(encoder_CDMA(msg[node-1],codes[f"scenario-{scenario}"][node]).tolist()) # this holds encoded messages of nodes, its shape (1,3)
         
-        received_msgs = apply_channel(encoded_msgs,st_devs) # this holds messages after superposing and adding noise, since there is 7 different noise value its shape (7,3)
+        received_msgs = apply_channel(encoded_msgs,st_devs) # this holds messages after superposing and adding noise, since there is 7 different noise value its shape (7,1)
         for noise in range(7):
             temp =[]
             for node in range(3):
-                temp.append(decoder_CDMA(received_msgs[noise][node],codes[f"scenario-{scenario}"][node])) # this holds received messages from different nodes for specific noise std value
+                temp.append(decoder_CDMA(received_msgs[noise],codes[f"scenario-{scenario}"][node+1])) # this holds received messages from different nodes for specific noise std value
                                                                                                         # so its shape is (1,3)
             decoded_msgs.append(temp) # packed format of received messages, shape (7,3)
-        eval_BER(encoded_msgs,decoded_msgs)
+        results = eval_BER(msg,decoded_msgs)
+        results.to_csv(f"scenario_{scenario}.csv")
+
 
 
 
